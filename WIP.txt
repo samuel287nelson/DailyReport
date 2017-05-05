@@ -1,4 +1,6 @@
 Dim directory As String
+'Dim GNFileName As String
+'Dim GFFileName As String
 Dim GNpath As String
 Dim GFpath As String
 Dim gnwb As Excel.Workbook
@@ -7,7 +9,6 @@ Dim gfwb As String
 'declaring global variables
 Public GFFileName As String
 Public GNFileName As String
-Public OutfoxFileName As String
 Public StartDate As String
 Public EndDate As String
 Public StartTime As String
@@ -247,13 +248,16 @@ Function IsFileOpen(filename As String)
     End Select
 
 End Function
+            
+
 
 Sub ManualRunMacro()
+
+
 
 'initialize variables
 GFFileName = "False"
 GNFileName = "False"
-OutfoxFileName = "False"
 StartDate = "MM/DD/YYYY"
 EndDate = "MM/DD/YYYY"
 StartTime = "HH:MM"
@@ -276,12 +280,6 @@ Call RetrieveGFFileName
 
 If GFFileName = "False" Then Exit Sub
 
-MsgBox "Select Outfox File"
-
-Call RetrieveOutfoxFileName
-
-If OutfoxFileName = "False" Then Exit Sub
-
 If IsFileOpen(GNFileName) Then
    MsgBox "Giganews file already open. Please close the file and re-run report."
    Exit Sub
@@ -289,11 +287,6 @@ End If
    
 If IsFileOpen(GFFileName) Then
    MsgBox "Golden Frog file already open. Please close the file and re-run report."
-   Exit Sub
-End If
-
-If IsFileOpen(OutfoxFileName) Then
-  MsgBox "Outfox file already open. Please close the file and re-run report."
    Exit Sub
 End If
 
@@ -324,10 +317,8 @@ Range("A1").Select
 Sheets("GF Stats").Select
 Range("A:E").EntireColumn.AutoFit
 Range("A1").Select
-Sheets("Outfox Stats").Select
-Range("A:E").EntireColumn.AutoFit
-Range("A1").Select
 Sheets("Combined Stats").Select
+
 Sheets("Combined Stats").Activate
 Range("A1").Select
 ActiveWorkbook.Save
@@ -363,6 +354,104 @@ CustomDateAndTime.Show
 
 End Sub
 
+Sub moveExports()
+
+DOWNdirectory = "C:\Users\" & Environ("username") & "\Downloads\"
+
+GNpath = Dir(DOWNdirectory & "*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv")
+
+GFpath = Dir(DOWNdirectory & "*3a6e-4144-97fb-07ec8c993c11.csv")
+
+
+
+Do While fn <> ""
+        
+        FileCopy SnapFolder & DownloadsFolder, SnapFolder
+        
+        directory = "C:\Users\" & Environ("username") & "\Downloads\"
+
+GNpath = Dir(directory & "*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv")
+
+GFpath = Dir(directory & "*3a6e-4144-97fb-07ec8c993c11.csv")
+        
+        fn = Dir
+    
+    Loop
+    
+End Sub
+
+Sub CopytoShare()
+
+Dim FSO
+Dim sFile As String
+Dim sSFolder As String
+Dim sDFolder As String
+
+
+sFile = "*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv"
+
+'sFile = "GNStats.csv"
+
+sSFolder = "C:\Users\" & Environ("username") & "\Downloads\"
+
+
+sDFolder = "S:\_ForSupportLeads\SnapEngage\Daily Report\SnapEngage Exports\"
+
+
+Set FSO = CreateObject("Scripting.FileSystemObject")
+
+'Checking If File Is Located in the Source Folder
+If Not FSO.FileExists(sSFolder & sFile) Then
+MsgBox "Specified File Not Found", vbInformation, "Not Found"
+
+'Copying If the Same File is Not Located in the Destination Folder
+ElseIf Not FSO.FileExists(sDFolder & sFile) Then
+FSO.CopyFile (sSFolder & sFile), sDFolder, True
+MsgBox "Specified File Copied Successfully", vbInformation, "Done!"
+Else
+MsgBox "Specified File Already Exists In The Destination Folder", vbExclamation, "File Already Exists"
+End If
+
+End Sub
+
+Sub delExports()
+
+shareDIR = "S:\_ForSupportLeads\SnapEngage\Daily Report\SnapEngage Exports\"
+directory = "C:\Users\" & Environ("username") & "\Downloads\"
+
+GNpath = Dir(shareDIR & "*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv")
+
+GFpath = Dir(shareDIR & "*3a6e-4144-97fb-07ec8c993c11.csv")
+
+Kill (shareDIR & GNpath)
+
+Kill (shareDIR & GFpath)
+
+'Kill "S:\_ForSupportLeads\SnapEngage\Daily Report\SnapEngage Exports\*.csv"
+
+End Sub
+
+
+
+Sub AutomaticMacro()
+
+Call UnprotectDocument
+
+'Call CopytoShare
+
+Call OpenStatsWorkbooks
+
+Call Filter_SLA_ABR
+
+Call Filter_AWT_ACL
+
+Sheets("Combined Stats").Activate
+Range("A1").Select
+
+Call ProtectDocument
+ActiveWorkbook.Save
+
+End Sub
 Sub OpenStatsWorkbooksMan()
 
 Application.ScreenUpdating = False
@@ -381,17 +470,79 @@ GFFileName = Dir(GFFileName)
 Application.CutCopyMode = False
 Workbooks(GFFileName).Close SaveChanges:=False
 Application.CutCopyMode = True
-Workbooks.Open (OutfoxFileName)
-Call RemoveColMan
-Call CopyCleanedStatsOutfox
-OutfoxFileName = Dir(OutfoxFileName)
-Application.CutCopyMode = False
-Workbooks(OutfoxFileName).Close SaveChanges:=False
-Application.CutCopyMode = True
 
 End Sub
 
+Sub OpenStatsWorkbooks()
+
+'turn off screen updating.
+
+Application.ScreenUpdating = False
+
+directory = "S:\_ForSupportLeads\SnapEngage\Daily Report\SnapEngage Exports\"
+
+GNpath = Dir(directory & "*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv")
+
+GFpath = Dir(directory & "*3a6e-4144-97fb-07ec8c993c11.csv")
+
+GNFileName = Dir("*18577140-3fea-4ce8-87dd-3321a4f3f2bf.csv")
+
+GFFileName = Dir("*3a6e-4144-97fb-07ec8c993c11.csv")
+
+'GF Copy/Paste
+
+Workbooks.Open (directory & GFpath)
+
+'Set gfwb = ActiveWorkbook
+
+'GF Copy/Paste
+
+Call RemoveCol
+
+Call CopyCleanedStatsGF
+
+'GF Close Open Workbooks'
+Dim wb As Workbook
+Application.DisplayAlerts = False
+For Each wb In Application.Workbooks
+    If wb.Name Like "SnapEngage*.csv" Then wb.Close
+Next wb
+
+'GN Copy/Paste
+
+Workbooks.Open (directory & GNpath)
+
+Set gnwb = ActiveWorkbook
+
+Call RemoveCol
+
+Call CopyCleanedStatsGN
+
+'GN Close Open Workbooks'
+Application.DisplayAlerts = False
+For Each wb In Application.Workbooks
+    If wb.Name Like "SnapEngage*.csv" Then wb.Close
+Next wb
+
+
+
+
+
+ActiveWorkbook.Sheets("Combined Stats").Activate
+
+Call delExports
+
+Application.ScreenUpdating = False
+Application.DisplayAlerts = False
+
+End Sub
+
+
+
 Sub RemoveColMan()
+'
+'Remove_Col Macro
+'
     
     ActiveWorkbook.Worksheets(1).Activate
     Range("A:E,G:Q,U:U,W:AC").Select
@@ -401,36 +552,52 @@ Sub RemoveColMan()
     Columns("A:E").Select
     Selection.Copy
     
+    End Sub
+Sub RemoveCol()
+
+Dim t As Double
+
+' Remove_Col Macro
+    
+    
+    ActiveWorkbook.Worksheets(1).Activate
+    Range("A:E,G:Q,U:U,W:AC").Select
+    Selection.Delete Shift:=xlToLeft
+    Range("A:E,G:Q,U:U,W:AC").EntireColumn.AutoFit
+    Call ConvertDateAndTimeToLocalDateAndTime
+    t = TimeValue(Now)
+    If TimeValue("12:00:00 AM") < t < TimeValue("12:00:00 PM") Then Call FilterNightAuto
+    If TimeValue("12:00:00 PM") < t < TimeValue("12:00:00 AM") Then Call FilterDayAuto
+    Columns("A:E").Select
+    Selection.Copy
+    
 End Sub
 
 Sub CopyCleanedStatsGN()
 
 Dim mainworkBook As Workbook
+' CopyCleanedStats Macro
     
     Windows("Daily Report.xlsm").Activate
     Sheets("GN Stats").Select
     Worksheets("GN Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
+                                          
+  
 
 End Sub
 
 Sub CopyCleanedStatsGF()
-
+'
+' CopyCleanedStats Macro
+    
   Dim mainworkBook As Workbook
+
     
     Windows("Daily Report.xlsm").Activate
     Sheets("GF Stats").Select
+    'Range("A:Z").Activate
+    'Range("A:Z").Select
     Worksheets("GF Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
-
-End Sub
-
-Sub CopyCleanedStatsOutfox()
-
-  Dim mainworkBook As Workbook
-
-    
-    Windows("Daily Report.xlsm").Activate
-    Sheets("Outfox Stats").Select
-    Worksheets("Outfox Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
 
   
 End Sub
@@ -439,7 +606,13 @@ Sub RetrieveGNFileName()
 
 Dim sFileName As String
 
+    'Show the open dialog and pass the selected _
+
+    'file name to the String variable "sFileName"
+
     sFileName = Application.GetOpenFilename
+
+    'They have cancelled.
 
     If sFileName = "False" Then Exit Sub
     
@@ -450,7 +623,13 @@ Sub RetrieveGFFileName()
 
 Dim sFileName As String
 
+    'Show the open dialog and pass the selected _
+
+    'file name to the String variable "sFileName"
+
     sFileName = Application.GetOpenFilename
+
+    'They have cancelled.
 
     If sFileName = "False" Then Exit Sub
     
@@ -458,20 +637,10 @@ Dim sFileName As String
     
 End Sub
 
-Sub RetrieveOutfoxFileName()
-
-Dim sFileName As String
-
-    sFileName = Application.GetOpenFilename
-
-    If sFileName = "False" Then Exit Sub
-    
-    OutfoxFileName = sFileName
-    
-End Sub
-
 Sub FilterMan()
-
+'
+' Filters for Data between the date and time inputted by user
+'
     Call ConvertDateAndTimeToLocalDateAndTime
     Columns("A:A").Select
     Selection.AutoFilter
@@ -479,10 +648,38 @@ Sub FilterMan()
 
 End Sub
 
+Sub FilterDayAuto()
+'
+' Filters for Data between the date and time inputted by user
+'
+  StartDate = Date
+  EndDate = Date
+  StartDateTime = Date & " 07:00"
+  EndDateTime = Date & " 19:00"
+  Columns("A:A").Select
+  Selection.AutoFilter
+  ActiveSheet.Range("$A:$D").AutoFilter Field:=1, Criteria1:=">=" & StartDateTime, Operator:=xlAnd, Criteria2:="<" & EndDateTime
+
+End Sub
+
+Sub FilterNightAuto()
+'
+' Filters for Data between the date and time inputted by user
+'
+  StartDate = Date - 1
+  EndDate = Date
+  StartDateTime = StartDate & " 19:00"
+  EndDateTime = Date & " 07:00"
+  Columns("A:A").Select
+  Selection.AutoFilter
+  ActiveSheet.Range("$A:$D").AutoFilter Field:=1, Criteria1:=">=" & StartDateTime, Operator:=xlAnd, Criteria2:="<" & EndDateTime
+
+End Sub
+
 Sub ConvertDateAndTimeToLocalDateAndTime()
 
-    Dim FirstEmptyRow As Integer
-    Dim i As Integer
+    Dim FirstEmptyRow As Long
+    Dim i As Long
 
     FirstEmptyRow = Cells(Rows.Count, 1).End(xlUp).Offset(1, 0).Row
     For i = 2 To (FirstEmptyRow - 1)
@@ -490,52 +687,6 @@ Sub ConvertDateAndTimeToLocalDateAndTime()
        Range("A" & i).Value = Range("A" & i).Value
    Next i
 
-End Sub
-
-Sub ProtectDocument()
-
-    Sheets("Combined Stats").Select
-    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
-        , AllowSorting:=True, AllowFiltering:=True
-        
-    Sheets("Filter_SLA_ABR").Select
-    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
-        , AllowSorting:=True, AllowFiltering:=True
-        
-    Sheets("Filter_AWT_ACL").Select
-    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
-        , AllowSorting:=True, AllowFiltering:=True
-        
-    Sheets("Charts_SLA_ABR").Select
-    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
-        , AllowSorting:=True, AllowFiltering:=True
-        
-    Sheets("Charts_AWT_ACL").Select
-    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
-        , AllowSorting:=True, AllowFiltering:=True
-        
-    ActiveWorkbook.Protect Structure:=True, Windows:=False
-
-End Sub
-
-Sub UnprotectDocument()
-
-    Sheets("Combined Stats").Select
-    ActiveSheet.Unprotect
-        
-    Sheets("Filter_SLA_ABR").Select
-    ActiveSheet.Unprotect
-    
-    Sheets("Filter_AWT_ACL").Select
-    ActiveSheet.Unprotect
-    
-    Sheets("Charts_SLA_ABR").Select
-    ActiveSheet.Unprotect
-    
-    Sheets("Charts_AWT_ACL").Select
-    ActiveSheet.Unprotect
-    
-    ActiveWorkbook.Unprotect
 
 End Sub
 
@@ -668,8 +819,8 @@ Dim temp As String
 
 
 k = 0
-NightStartTime = "7:00:00 PM"
-DayStartTime = "7:00:00 AM"
+NightStartTime = "8:00:00 PM"
+DayStartTime = "8:00:00 AM"
 
 Worksheets("Filter_AWT_ACL").Activate
 FirstEmptyRow = Cells(Rows.Count, 3).End(xlUp).Offset(1, 0).Row
@@ -741,23 +892,6 @@ Range(EmptyCell).Value = Range("B" & FirstEmptyRow).Value & " " & vbNewLine & Ra
     End With
     ActiveSheet.Rows("1:1").Hidden = False
     
-Worksheets("Outfox Stats").Activate
-    ActiveSheet.Rows("1:1").Hidden = True
-    Columns("A:E").Select
-    ActiveWorkbook.Worksheets("Outfox Stats").Sort.SortFields.Clear
-    ActiveWorkbook.Worksheets("Outfox Stats").Sort.SortFields.Add Key:=Range( _
-        "A:A"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:= _
-        xlSortNormal
-    With ActiveWorkbook.Worksheets("Outfox Stats").Sort
-        .SetRange Range("A:E")
-        .Header = xlYes
-        .MatchCase = False
-        .Orientation = xlTopToBottom
-        .SortMethod = xlPinYin
-        .Apply
-    End With
-    ActiveSheet.Rows("1:1").Hidden = False
-
 Worksheets("Filter_AWT_ACL").Activate
 
 m = 2
@@ -793,13 +927,6 @@ k = k + 1
           TotalWaitTime = TotalWaitTime + Worksheets("GF Stats").Cells(n, 3).Value
           TotalChatTime = TotalChatTime + Worksheets("GF Stats").Cells(n, 4).Value
           If Worksheets("GF Stats").Cells(n, 3).Value > MaxWaitTime Then MaxWaitTime = Worksheets("GF Stats").Cells(n, 3).Value
-          n = n + 1
-    Loop
-    Do While ((Worksheets("Outfox Stats").Cells(n, 1).Value <> "") And ((StrComp(Format(Worksheets("Outfox Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = -1) Or (StrComp(Format(Worksheets("Outfox Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = 0)))
-          If Worksheets("Outfox Stats").Cells(n, 4).Value > 0 Then TotalChats = TotalChats + 1
-          TotalWaitTime = TotalWaitTime + Worksheets("Outfox Stats").Cells(n, 3).Value
-          TotalChatTime = TotalChatTime + Worksheets("Outfox Stats").Cells(n, 4).Value
-          If Worksheets("Outfox Stats").Cells(n, 3).Value > MaxWaitTime Then MaxWaitTime = Worksheets("Outfox Stats").Cells(n, 3).Value
           n = n + 1
     Loop
     Range("D" & j).Value = Format(CurrentDateTime + TimeSerial(-1, 0, 0), "hh:mm")
@@ -1210,4 +1337,53 @@ End If
 
 End Sub
 
+Sub ProtectDocument()
 
+    Application.ScreenUpdating = False
+        
+    Sheets("Filter_SLA_ABR").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Filter_AWT_ACL").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Charts_SLA_ABR").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Charts_AWT_ACL").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Combined Stats").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    ActiveWorkbook.Protect Structure:=True, Windows:=False
+
+End Sub
+
+Sub UnprotectDocument()
+
+    Application.ScreenUpdating = False
+        
+    Sheets("Filter_SLA_ABR").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Filter_AWT_ACL").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Charts_SLA_ABR").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Charts_AWT_ACL").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Combined Stats").Select
+    ActiveSheet.Unprotect
+    
+    ActiveWorkbook.Unprotect
+
+End Sub
