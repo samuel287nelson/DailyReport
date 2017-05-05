@@ -1,0 +1,1213 @@
+Dim directory As String
+Dim GNpath As String
+Dim GFpath As String
+Dim gnwb As Excel.Workbook
+Dim gfwb As String
+
+'declaring global variables
+Public GFFileName As String
+Public GNFileName As String
+Public OutfoxFileName As String
+Public StartDate As String
+Public EndDate As String
+Public StartTime As String
+Public EndTime As String
+Public StartDateTime As String
+Public EndDateTime As String
+Public TOSelectedOption As Integer
+
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' modTimeZones
+' By Chip Pearson, chip@cpearson.com, www.cpearson.com
+' Date: 2-April-2008
+' Page Specific URL: www.cpearson.com/Excel/TimeZoneAndDaylightTime.aspx
+'
+' This module contains functions related to time zones and GMT times.
+'   Terms:
+'   -------------------------
+'   GMT = Greenwich Mean Time. Many applications use the term
+'       UTC (Universal Coordinated Time). GMT and UTC are
+'       interchangable in meaning,
+'   Local Time = The local "wall clock" time of day, that time that
+'       you would set a clock to.
+'   DST = Daylight Savings Time
+
+'   Functions In This Module:
+'   -------------------------
+'       ConvertLocalToGMT
+'           Converts a local time to GMT. Optionally adjusts for DST.
+'       DaylightTime
+'           Returns a value indicating (1) DST is in effect, (2) DST is
+'           not in effect, or (3) Windows cannot determine whether DST is
+'           in effect.
+'       GetLocalTimeFromGMT
+'           Converts a GMT Time to a Local Time, optionally adjusting for DST.
+'       LocalOffsetFromGMT
+'           Returns the number of hours or minutes between the local time and GMT,
+'           optionally adjusting for DST.
+'       SystemTimeToVBTime
+'           Converts a SYSTEMTIME structure to a valid VB/VBA date.
+'       LocalOffsetFromGMT
+'           Returns the number of minutes or hours that are to be added to
+'           the local time to get GMT. Optionally adjusts for DST.
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Required Types
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Type SYSTEMTIME
+    wYear As Integer
+    wMonth As Integer
+    wDayOfWeek As Integer
+    wDay As Integer
+    wHour As Integer
+    wMinute As Integer
+    wSecond As Integer
+    wMilliseconds As Integer
+End Type
+
+Private Type TIME_ZONE_INFORMATION
+    Bias As Long
+    StandardName(0 To 31) As Integer
+    StandardDate As SYSTEMTIME
+    StandardBias As Long
+    DaylightName(0 To 31) As Integer
+    DaylightDate As SYSTEMTIME
+    DaylightBias As Long
+End Type
+
+Public Enum TIME_ZONE
+    TIME_ZONE_ID_INVALID = 0
+    TIME_ZONE_STANDARD = 1
+    TIME_ZONE_DAYLIGHT = 2
+End Enum
+    
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Required Windows API Declares
+'''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Declare Function GetTimeZoneInformation Lib "kernel32" _
+    (lpTimeZoneInformation As TIME_ZONE_INFORMATION) As Long
+
+Private Declare Sub GetSystemTime Lib "kernel32" _
+    (lpSystemTime As SYSTEMTIME)
+
+
+Function ConvertLocalToGMT(Optional LocalTime As Date, _
+    Optional AdjustForDST As Boolean = False) As Date
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' ConvertLocalToGMT
+' This converts a local time to GMT. If LocalTime is present, that local
+' time is converted to GMT. If LocalTime is omitted, the current time is
+' converted from local to GMT. If AdjustForDST is Fasle, no adjustments
+' are made to accomodate DST. If AdjustForDST is True, and DST is
+' in effect, the time is adjusted for DST by adding
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim t As Date
+Dim TZI As TIME_ZONE_INFORMATION
+Dim DST As TIME_ZONE
+Dim GMT As Date
+
+If LocalTime <= 0 Then
+    t = Now
+Else
+    t = LocalTime
+End If
+DST = GetTimeZoneInformation(TZI)
+If AdjustForDST = True Then
+    GMT = t + TimeSerial(0, TZI.Bias, 0) + _
+            IIf(DST = TIME_ZONE_DAYLIGHT, TimeSerial(0, TZI.DaylightBias, 0), 0)
+Else
+    GMT = t + TimeSerial(0, TZI.Bias, 0)
+End If
+ConvertLocalToGMT = GMT
+
+End Function
+
+
+Function GetLocalTimeFromGMT(Optional StartTime As Date) As Date
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' GetLocalTimeFromGMT
+' This returns the Local Time from a GMT time. If StartDate is present and
+' greater than 0, it is assumed to be the GMT from which we will calculate
+' Local Time. If StartTime is 0 or omitted, it is assumed to be the GMT
+' local time.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim GMT As Date
+Dim TZI As TIME_ZONE_INFORMATION
+Dim DST As TIME_ZONE
+Dim LocalTime As Date
+
+If StartTime <= 0 Then
+    GMT = Now
+Else
+    GMT = StartTime
+End If
+DST = GetTimeZoneInformation(TZI)
+LocalTime = GMT - TimeSerial(0, TZI.Bias, 0) + _
+        IIf(DST = TIME_ZONE_DAYLIGHT, TimeSerial(1, 0, 0), 0)
+GetLocalTimeFromGMT = LocalTime
+
+End Function
+
+Function SystemTimeToVBTime(SysTime As SYSTEMTIME) As Date
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' SystemTimeToVBTime
+' This converts a SYSTEMTIME structure to a VB/VBA date value.
+' It assumes SysTime is valid -- no error checking is done.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+With SysTime
+    SystemTimeToVBTime = DateSerial(.wYear, .wMonth, .wDay) + _
+            TimeSerial(.wHour, .wMinute, .wSecond)
+End With
+
+End Function
+
+Function LocalOffsetFromGMT(Optional AsHours As Boolean = False, _
+    Optional AdjustForDST As Boolean = False) As Long
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' LocalOffsetFromGMT
+' This returns the amount of time in minutes (if AsHours is omitted or
+' false) or hours (if AsHours is True) that should be added to the
+' local time to get GMT. If AdjustForDST is missing or false,
+' the unmodified difference is returned. (e.g., Kansas City to London
+' is 6 hours normally, 5 hours during DST. If AdjustForDST is False,
+' the resultif 6 hours. If AdjustForDST is True, the result is 5 hours
+' if DST is in effect.)
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Dim TBias As Long
+Dim TZI As TIME_ZONE_INFORMATION
+Dim DST As TIME_ZONE
+DST = GetTimeZoneInformation(TZI)
+
+If DST = TIME_ZONE_DAYLIGHT Then
+    If AdjustForDST = True Then
+        TBias = TZI.Bias + TZI.DaylightBias
+    Else
+        TBias = TZI.Bias
+    End If
+Else
+    TBias = TZI.Bias
+End If
+If AsHours = True Then
+    TBias = TBias / 60
+End If
+
+LocalOffsetFromGMT = TBias
+
+End Function
+
+Function DaylightTime() As TIME_ZONE
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' DaylightTime
+' Returns a value indicating whether the current date is
+' in Daylight Time, Standard Time, or that Windows cannot
+' deterimine the time status. The result is a member or
+' the TIME_ZONE enum.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim TZI As TIME_ZONE_INFORMATION
+Dim DST As TIME_ZONE
+DST = GetTimeZoneInformation(TZI)
+DaylightTime = DST
+End Function
+
+
+Function IsFileOpen(filename As String)
+    Dim filenum As Integer, errnum As Integer
+
+    On Error Resume Next   ' Turn error checking off.
+    filenum = FreeFile()   ' Get a free file number.
+    ' Attempt to open the file and lock it.
+    Open filename For Input Lock Read As #filenum
+    Close filenum          ' Close the file.
+    errnum = Err           ' Save the error number that occurred.
+    On Error GoTo 0        ' Turn error checking back on.
+
+    ' Check to see which error occurred.
+    Select Case errnum
+
+        ' No error occurred.
+        ' File is NOT already open by another user.
+        Case 0
+         IsFileOpen = False
+
+        ' Error number for "Permission Denied."
+        ' File is already opened by another user.
+        Case 70
+            IsFileOpen = True
+
+        ' Another error occurred.
+        Case Else
+            Error errnum
+    End Select
+
+End Function
+
+Sub ManualRunMacro()
+
+'initialize variables
+GFFileName = "False"
+GNFileName = "False"
+OutfoxFileName = "False"
+StartDate = "MM/DD/YYYY"
+EndDate = "MM/DD/YYYY"
+StartTime = "HH:MM"
+EndTime = "HH:MM"
+StartDateTime = StartDate + " " + StartTime
+EndDateTime = EndDate + " " + EndTime
+TOSelectedOption = 0
+
+Call UnprotectDocument
+
+MsgBox "Select Giganews File"
+
+Call RetrieveGNFileName
+
+If GNFileName = "False" Then Exit Sub
+
+MsgBox "Select Golden Frog File"
+
+Call RetrieveGFFileName
+
+If GFFileName = "False" Then Exit Sub
+
+MsgBox "Select Outfox File"
+
+Call RetrieveOutfoxFileName
+
+If OutfoxFileName = "False" Then Exit Sub
+
+If IsFileOpen(GNFileName) Then
+   MsgBox "Giganews file already open. Please close the file and re-run report."
+   Exit Sub
+End If
+   
+If IsFileOpen(GFFileName) Then
+   MsgBox "Golden Frog file already open. Please close the file and re-run report."
+   Exit Sub
+End If
+
+If IsFileOpen(OutfoxFileName) Then
+  MsgBox "Outfox file already open. Please close the file and re-run report."
+   Exit Sub
+End If
+
+TimeOnlySelector.Show
+
+If TOSelectedOption = 3 Then Call CustomTimeSelected
+If TOSelectedOption = 2 Then Call NightShiftSelected
+If TOSelectedOption = 1 Then Call DayShiftSelected
+
+StartDateTime = StartDate + " " + StartTime
+EndDateTime = EndDate + " " + EndTime
+
+If StartDateTime = "MM/DD/YYYY" Then
+   MsgBox "Error with start date and/or start time"
+   Exit Sub
+End If
+If EndDateTime = "MM/DD/YYYY" Then
+   MsgBox "Error with end date and/or end time"
+   Exit Sub
+End If
+
+Call OpenStatsWorkbooksMan
+
+Windows("Daily Report.xlsm").Activate
+Sheets("GN Stats").Select
+Range("A:E").EntireColumn.AutoFit
+Range("A1").Select
+Sheets("GF Stats").Select
+Range("A:E").EntireColumn.AutoFit
+Range("A1").Select
+Sheets("Outfox Stats").Select
+Range("A:E").EntireColumn.AutoFit
+Range("A1").Select
+Sheets("Combined Stats").Select
+Sheets("Combined Stats").Activate
+Range("A1").Select
+ActiveWorkbook.Save
+
+UpdateSave.Show
+
+Call ProtectDocument
+
+ActiveWorkbook.Save
+
+End Sub
+
+
+Sub DayShiftSelected()
+
+StartTime = "07:00"
+EndTime = "19:00"
+DateOnlyCalendar.Show
+
+End Sub
+
+Sub NightShiftSelected()
+
+StartTime = "19:00"
+EndTime = "07:00"
+DateOnlyCalendar.Show
+
+End Sub
+
+Sub CustomTimeSelected()
+
+CustomDateAndTime.Show
+
+End Sub
+
+Sub OpenStatsWorkbooksMan()
+
+Application.ScreenUpdating = False
+
+Workbooks.Open (GNFileName)
+Call RemoveColMan
+Call CopyCleanedStatsGN
+GNFileName = Dir(GNFileName)
+Application.CutCopyMode = False
+Workbooks(GNFileName).Close SaveChanges:=False
+Application.CutCopyMode = True
+Workbooks.Open (GFFileName)
+Call RemoveColMan
+Call CopyCleanedStatsGF
+GFFileName = Dir(GFFileName)
+Application.CutCopyMode = False
+Workbooks(GFFileName).Close SaveChanges:=False
+Application.CutCopyMode = True
+Workbooks.Open (OutfoxFileName)
+Call RemoveColMan
+Call CopyCleanedStatsOutfox
+OutfoxFileName = Dir(OutfoxFileName)
+Application.CutCopyMode = False
+Workbooks(OutfoxFileName).Close SaveChanges:=False
+Application.CutCopyMode = True
+
+End Sub
+
+Sub RemoveColMan()
+    
+    ActiveWorkbook.Worksheets(1).Activate
+    Range("A:E,G:Q,U:U,W:AC").Select
+    Selection.Delete Shift:=xlToLeft
+    Range("A:E,G:Q,U:U,W:AC").EntireColumn.AutoFit
+    Call FilterMan
+    Columns("A:E").Select
+    Selection.Copy
+    
+End Sub
+
+Sub CopyCleanedStatsGN()
+
+Dim mainworkBook As Workbook
+    
+    Windows("Daily Report.xlsm").Activate
+    Sheets("GN Stats").Select
+    Worksheets("GN Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
+
+End Sub
+
+Sub CopyCleanedStatsGF()
+
+  Dim mainworkBook As Workbook
+    
+    Windows("Daily Report.xlsm").Activate
+    Sheets("GF Stats").Select
+    Worksheets("GF Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
+
+End Sub
+
+Sub CopyCleanedStatsOutfox()
+
+  Dim mainworkBook As Workbook
+
+    
+    Windows("Daily Report.xlsm").Activate
+    Sheets("Outfox Stats").Select
+    Worksheets("Outfox Stats").Range("A1").PasteSpecial Paste:=xlPasteValues, SkipBlanks:=True
+
+  
+End Sub
+
+Sub RetrieveGNFileName()
+
+Dim sFileName As String
+
+    sFileName = Application.GetOpenFilename
+
+    If sFileName = "False" Then Exit Sub
+    
+    GNFileName = sFileName
+    
+End Sub
+Sub RetrieveGFFileName()
+
+Dim sFileName As String
+
+    sFileName = Application.GetOpenFilename
+
+    If sFileName = "False" Then Exit Sub
+    
+    GFFileName = sFileName
+    
+End Sub
+
+Sub RetrieveOutfoxFileName()
+
+Dim sFileName As String
+
+    sFileName = Application.GetOpenFilename
+
+    If sFileName = "False" Then Exit Sub
+    
+    OutfoxFileName = sFileName
+    
+End Sub
+
+Sub FilterMan()
+
+    Call ConvertDateAndTimeToLocalDateAndTime
+    Columns("A:A").Select
+    Selection.AutoFilter
+    ActiveSheet.Range("$A:$E").AutoFilter Field:=1, Criteria1:=">=" & StartDateTime, Operator:=xlAnd, Criteria2:="<" & EndDateTime
+
+End Sub
+
+Sub ConvertDateAndTimeToLocalDateAndTime()
+
+    Dim FirstEmptyRow As Integer
+    Dim i As Integer
+
+    FirstEmptyRow = Cells(Rows.Count, 1).End(xlUp).Offset(1, 0).Row
+    For i = 2 To (FirstEmptyRow - 1)
+       Range("A" & i).Value = GetLocalTimeFromGMT(Range("A" & i).Value)
+       Range("A" & i).Value = Range("A" & i).Value
+   Next i
+
+End Sub
+
+Sub ProtectDocument()
+
+    Sheets("Combined Stats").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Filter_SLA_ABR").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Filter_AWT_ACL").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Charts_SLA_ABR").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    Sheets("Charts_AWT_ACL").Select
+    ActiveSheet.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True _
+        , AllowSorting:=True, AllowFiltering:=True
+        
+    ActiveWorkbook.Protect Structure:=True, Windows:=False
+
+End Sub
+
+Sub UnprotectDocument()
+
+    Sheets("Combined Stats").Select
+    ActiveSheet.Unprotect
+        
+    Sheets("Filter_SLA_ABR").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Filter_AWT_ACL").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Charts_SLA_ABR").Select
+    ActiveSheet.Unprotect
+    
+    Sheets("Charts_AWT_ACL").Select
+    ActiveSheet.Unprotect
+    
+    ActiveWorkbook.Unprotect
+
+End Sub
+
+Sub Filter_SLA_ABR()
+
+Dim EmptyCell As String
+Dim FirstEmptyRow As String
+Dim DayOfWeek As Integer
+
+DayOfWeek = Weekday(StartDate)
+
+Worksheets("Filter_SLA_ABR").Activate
+FirstEmptyRow = Cells(Rows.Count, 1).End(xlUp).Offset(1, 0).Row
+EmptyCell = "A" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = StartDate
+EmptyCell = "C" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = Worksheets("Combined Stats").Range("I11").Value
+EmptyCell = "F" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = Worksheets("Combined Stats").Range("I8").Value
+EmptyCell = "I" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = Worksheets("Combined Stats").Range("I5").Value
+EmptyCell = "J" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = Worksheets("Combined Stats").Range("I6").Value
+Range("D" & FirstEmptyRow).Value = (Worksheets("Charts_SLA_ABR").Range("A1").Value + Worksheets("Charts_SLA_ABR").Range("B1").Value) / Worksheets("Combined Stats").Range("I5").Value
+Range("E" & FirstEmptyRow).Value = (Worksheets("Charts_SLA_ABR").Range("A2").Value + Worksheets("Charts_SLA_ABR").Range("B2").Value) / Worksheets("Combined Stats").Range("I5").Value
+EmptyCell = "G" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = 0.9
+EmptyCell = "H" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = 0.05
+
+Select Case DayOfWeek
+
+   Case 1, 2, 3
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range("B" & FirstEmptyRow).Value = "A-Day"
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range("B" & FirstEmptyRow).Value = "A-Night"
+   Case 4, 5, 6
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range("B" & FirstEmptyRow).Value = "B-Day"
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range("B" & FirstEmptyRow).Value = "B-Night"
+   Case 7
+      Select Case (DatePart("ww", StartDate) Mod 2)
+         Case 0
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range("B" & FirstEmptyRow).Value = "B-Day"
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range("B" & FirstEmptyRow).Value = "B-Night"
+         Case Else
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range("B" & FirstEmptyRow).Value = "A-Day"
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range("B" & FirstEmptyRow).Value = "A-Night"
+      End Select
+End Select
+
+If Range("B" & FirstEmptyRow).Value = "A-Day" Then
+   Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow, 2)).Select
+      With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 39423
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+      End With
+End If
+
+If Range("B" & FirstEmptyRow).Value = "A-Night" Then
+   Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow, 2)).Select
+      With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 682978
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+      End With
+End If
+
+If Range("B" & FirstEmptyRow).Value = "B-Day" Then
+   Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow, 2)).Select
+      With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 15773696
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+      End With
+End If
+
+If Range("B" & FirstEmptyRow).Value = "B-Night" Then
+   Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow, 2)).Select
+      With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 13995347
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+      End With
+End If
+
+Worksheets("Charts_SLA_ABR").Rows("1").Hidden = True
+Worksheets("Charts_SLA_ABR").Rows("2").Hidden = True
+
+Worksheets("Filter_SLA_ABR").Columns("A:A").Select
+Selection.AutoFilter
+ActiveSheet.Range("$A:$J").AutoFilter Field:=1, Criteria1:=">" & CDate(StartDate) - 7, Operator:=xlAnd, Criteria2:="<=" & CDate(StartDate)
+
+Range("A" & (FirstEmptyRow + 1)).Select
+
+End Sub
+
+Sub Filter_AWT_ACL()
+
+Dim MaxWaitTime As Long
+Dim TotalChats As Integer
+Dim TotalChatTime As Long
+Dim TotalWaitTime As Long
+Dim EmptyCell As String
+Dim FirstEmptyRow As String
+Dim DayOfWeek As Integer
+Dim j As Long
+Dim k As Integer
+Dim m As Integer
+Dim n As Integer
+Dim p As Long
+Dim NightStartTime As String
+Dim DayStartTime As String
+Dim CurrentDateTime As Date
+Dim temp As String
+
+
+k = 0
+NightStartTime = "7:00:00 PM"
+DayStartTime = "7:00:00 AM"
+
+Worksheets("Filter_AWT_ACL").Activate
+FirstEmptyRow = Cells(Rows.Count, 3).End(xlUp).Offset(1, 0).Row
+
+
+EmptyCell = "A" & FirstEmptyRow
+DayOfWeek = Weekday(StartDate)
+Select Case DayOfWeek
+
+   Case 1, 2, 3
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range(EmptyCell).Value = "A-Day"
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range(EmptyCell).Value = "A-Night"
+   Case 4, 5, 6
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range(EmptyCell).Value = "B-Day"
+      If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range(EmptyCell).Value = "B-Night"
+   Case 7
+      Select Case (DatePart("ww", StartDate) Mod 2)
+         Case 0
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range(EmptyCell).Value = "B-Day"
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range(EmptyCell).Value = "B-Night"
+         Case Else
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = 0 Then Range(EmptyCell).Value = "A-Day"
+            If StrComp(Format(StartDate, "MM/dd/yyyy"), Format(EndDate, "MM/dd/yyyy")) = -1 Then Range(EmptyCell).Value = "A-Night"
+      End Select
+End Select
+
+EmptyCell = "B" & FirstEmptyRow
+Range(EmptyCell).Select
+Range(EmptyCell).Value = StartDate
+
+For p = (FirstEmptyRow + 1) To (FirstEmptyRow + 11)
+   Range("A" & p).Value = Range("A" & FirstEmptyRow).Value
+   Range("B" & p).Value = Range("B" & FirstEmptyRow).Value
+Next p
+EmptyCell = "C" & FirstEmptyRow
+Range(EmptyCell).Value = Range("B" & FirstEmptyRow).Value & " " & vbNewLine & Range("A" & FirstEmptyRow).Value
+
+    Worksheets("GN Stats").Activate
+    ActiveSheet.Rows("1:1").Hidden = True
+    Columns("A:E").Select
+    ActiveWorkbook.Worksheets("GN Stats").Sort.SortFields.Clear
+    ActiveWorkbook.Worksheets("GN Stats").Sort.SortFields.Add Key:=Range( _
+        "A:A"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:= _
+        xlSortNormal
+    With ActiveWorkbook.Worksheets("GN Stats").Sort
+        .SetRange Range("A:E")
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    ActiveSheet.Rows("1:1").Hidden = False
+    
+    Worksheets("GF Stats").Activate
+    ActiveSheet.Rows("1:1").Hidden = True
+    Columns("A:E").Select
+    ActiveWorkbook.Worksheets("GF Stats").Sort.SortFields.Clear
+    ActiveWorkbook.Worksheets("GF Stats").Sort.SortFields.Add Key:=Range( _
+        "A:A"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:= _
+        xlSortNormal
+    With ActiveWorkbook.Worksheets("GF Stats").Sort
+        .SetRange Range("A:E")
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    ActiveSheet.Rows("1:1").Hidden = False
+    
+Worksheets("Outfox Stats").Activate
+    ActiveSheet.Rows("1:1").Hidden = True
+    Columns("A:E").Select
+    ActiveWorkbook.Worksheets("Outfox Stats").Sort.SortFields.Clear
+    ActiveWorkbook.Worksheets("Outfox Stats").Sort.SortFields.Add Key:=Range( _
+        "A:A"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:= _
+        xlSortNormal
+    With ActiveWorkbook.Worksheets("Outfox Stats").Sort
+        .SetRange Range("A:E")
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    ActiveSheet.Rows("1:1").Hidden = False
+
+Worksheets("Filter_AWT_ACL").Activate
+
+m = 2
+n = 2
+
+For j = FirstEmptyRow To (FirstEmptyRow + 11)
+    TotalChats = 0
+    TotalWaitTime = 0
+    MaxWaitTime = 0
+    TotalChatTime = 0
+
+   Select Case Range("A" & FirstEmptyRow).Value
+      Case "A-Day", "B-Day"
+         CurrentDateTime = CDate(StartDate) + DayStartTime + k / 24
+         Range("D" & j).Value = Format(CurrentDateTime, "hh:mm")
+         CurrentDateTime = CDate(StartDate) + DayStartTime + k / 24
+      Case "A-Night", "B-Night"
+         CurrentDateTime = CDate(StartDate) + NightStartTime + k / 24
+         Range("D" & j).Value = Format(CurrentDateTime, "hh:mm")
+         CurrentDateTime = CDate(StartDate) + NightStartTime + k / 24
+    End Select
+k = k + 1
+    Do While ((Worksheets("GN Stats").Cells(m, 1).Value <> "") And ((StrComp(Format(Worksheets("GN Stats").Cells(m, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = -1) Or (StrComp(Format(Worksheets("GN Stats").Cells(m, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = 0)))
+          If Worksheets("GN Stats").Cells(m, 4).Value > 0 Then TotalChats = TotalChats + 1
+          TotalWaitTime = TotalWaitTime + Worksheets("GN Stats").Cells(m, 3).Value
+          TotalChatTime = TotalChatTime + Worksheets("GN Stats").Cells(m, 4).Value
+          If Worksheets("GN Stats").Cells(m, 3).Value > MaxWaitTime Then MaxWaitTime = Worksheets("GN Stats").Cells(m, 3).Value
+          m = m + 1
+    Loop
+            
+    Do While ((Worksheets("GF Stats").Cells(n, 1).Value <> "") And ((StrComp(Format(Worksheets("GF Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = -1) Or (StrComp(Format(Worksheets("GF Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = 0)))
+          If Worksheets("GF Stats").Cells(n, 4).Value > 0 Then TotalChats = TotalChats + 1
+          TotalWaitTime = TotalWaitTime + Worksheets("GF Stats").Cells(n, 3).Value
+          TotalChatTime = TotalChatTime + Worksheets("GF Stats").Cells(n, 4).Value
+          If Worksheets("GF Stats").Cells(n, 3).Value > MaxWaitTime Then MaxWaitTime = Worksheets("GF Stats").Cells(n, 3).Value
+          n = n + 1
+    Loop
+    Do While ((Worksheets("Outfox Stats").Cells(n, 1).Value <> "") And ((StrComp(Format(Worksheets("Outfox Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = -1) Or (StrComp(Format(Worksheets("Outfox Stats").Cells(n, 1).Value, "dd/MM/yyyy hh:mm"), Format(CurrentDateTime, "dd/MM/yyyy hh:mm")) = 0)))
+          If Worksheets("Outfox Stats").Cells(n, 4).Value > 0 Then TotalChats = TotalChats + 1
+          TotalWaitTime = TotalWaitTime + Worksheets("Outfox Stats").Cells(n, 3).Value
+          TotalChatTime = TotalChatTime + Worksheets("Outfox Stats").Cells(n, 4).Value
+          If Worksheets("Outfox Stats").Cells(n, 3).Value > MaxWaitTime Then MaxWaitTime = Worksheets("Outfox Stats").Cells(n, 3).Value
+          n = n + 1
+    Loop
+    Range("D" & j).Value = Format(CurrentDateTime + TimeSerial(-1, 0, 0), "hh:mm")
+    Range("E" & j).Value = TotalChats
+    Range("F" & j).Value = MaxWaitTime / 86400
+    If TotalChats > 0 Then Range("G" & j).Value = (TotalWaitTime / TotalChats) / 86400
+    If TotalChats = 0 Then Range("G" & j).Value = 0
+    If TotalChats > 0 Then Range("H" & j).Value = (TotalChatTime / TotalChats) / 86400
+    If TotalChats = 0 Then Range("H" & j).Value = 0
+    Range("I" & j).Value = 60 / 86400
+    Range("J" & j).Value = 11 * 60 / 86400
+Next j
+
+If Cells(FirstEmptyRow, 1).Value = "A-Day" Then
+
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 11, 1)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 39423
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+    Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 11, 2)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 39423
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+    Range(Cells(FirstEmptyRow, 3), Cells(FirstEmptyRow + 11, 3)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    Selection.Merge
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = True
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 39423
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 4, 1)).Select
+ With Selection.Font
+        .Color = 39423
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 1), Cells(FirstEmptyRow + 11, 1)).Select
+ With Selection.Font
+        .Color = 39423
+        .TintAndShade = 0
+ End With
+ 
+ Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 4, 2)).Select
+ With Selection.Font
+        .Color = 39423
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 2), Cells(FirstEmptyRow + 11, 2)).Select
+ With Selection.Font
+        .Color = 39423
+        .TintAndShade = 0
+ End With
+    
+End If
+
+If Cells(FirstEmptyRow, 1).Value = "A-Night" Then
+
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 11, 1)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 682978
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 11, 2)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 682978
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+Range(Cells(FirstEmptyRow, 3), Cells(FirstEmptyRow + 11, 3)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    Selection.Merge
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = True
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 682978
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 4, 1)).Select
+ With Selection.Font
+        .Color = 682978
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 1), Cells(FirstEmptyRow + 11, 1)).Select
+ With Selection.Font
+        .Color = 682978
+        .TintAndShade = 0
+ End With
+ 
+Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 4, 2)).Select
+ With Selection.Font
+        .Color = 682978
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 2), Cells(FirstEmptyRow + 11, 2)).Select
+ With Selection.Font
+        .Color = 682978
+        .TintAndShade = 0
+ End With
+ 
+End If
+
+If Cells(FirstEmptyRow, 1).Value = "B-Day" Then
+
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 11, 1)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 15773696
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 11, 2)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 15773696
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+    Range(Cells(FirstEmptyRow, 3), Cells(FirstEmptyRow + 11, 3)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    Selection.Merge
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = True
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 15773696
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 4, 1)).Select
+ With Selection.Font
+        .Color = 15773696
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 1), Cells(FirstEmptyRow + 11, 1)).Select
+ With Selection.Font
+        .Color = 15773696
+        .TintAndShade = 0
+ End With
+ 
+ Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 4, 2)).Select
+ With Selection.Font
+        .Color = 15773696
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 2), Cells(FirstEmptyRow + 11, 2)).Select
+ With Selection.Font
+        .Color = 15773696
+        .TintAndShade = 0
+ End With
+    
+End If
+
+If Cells(FirstEmptyRow, 1).Value = "B-Night" Then
+
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 11, 1)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 13995347
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 11, 2)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 13995347
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+    Range(Cells(FirstEmptyRow, 3), Cells(FirstEmptyRow + 11, 3)).Select
+With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    Selection.Merge
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .WrapText = True
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = True
+    End With
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .Color = 13995347
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+    
+Range(Cells(FirstEmptyRow, 1), Cells(FirstEmptyRow + 4, 1)).Select
+ With Selection.Font
+        .Color = 13995347
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 1), Cells(FirstEmptyRow + 11, 1)).Select
+ With Selection.Font
+        .Color = 13995347
+        .TintAndShade = 0
+ End With
+ 
+ Range(Cells(FirstEmptyRow, 2), Cells(FirstEmptyRow + 4, 2)).Select
+ With Selection.Font
+        .Color = 13995347
+        .TintAndShade = 0
+ End With
+Range(Cells(FirstEmptyRow + 6, 2), Cells(FirstEmptyRow + 11, 2)).Select
+ With Selection.Font
+        .Color = 13995347
+        .TintAndShade = 0
+ End With
+ 
+End If
+
+    ActiveSheet.Range("$A:$J").AutoFilter Field:=1, Criteria1:=Range("A" & FirstEmptyRow).Value
+    ActiveSheet.Range("$A:$J").AutoFilter Field:=2, Operator:= _
+        xlFilterValues, Criteria2:=Array(2, Range("B" & FirstEmptyRow).Value)
+        
+    Range("A" & (FirstEmptyRow + 12)).Select
+
+End Sub
+
+
